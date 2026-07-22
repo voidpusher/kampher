@@ -19,14 +19,20 @@ router = APIRouter(prefix="/search", tags=["search"])
 async def search(
     session: SessionDep,
     service: SearchDep,
-    q: str = Query(min_length=2, max_length=500),
+    q: str = Query(default="", max_length=500),
     mode: Literal["keyword", "semantic", "hybrid"] = "hybrid",
     source: str | None = None,
+    community: str | None = None,
     industry: str | None = None,
     limit: int = Query(default=20, ge=1, le=50),
 ) -> SearchResponse:
     hits = await service.search_posts(
-        q, mode=mode, limit=limit, source=source, industry_slug=industry
+        q,
+        mode=mode,
+        limit=limit,
+        source=source,
+        community=community,
+        industry_slug=industry,
     )
     posts = {
         p.id: p

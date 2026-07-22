@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { api, SOURCE_LABELS, type SearchResponse } from "@/lib/api";
 import { hasSavedSearch, saveSearch, type SavedSearchMode } from "@/lib/saved-searches";
@@ -13,26 +15,63 @@ const MODES = [
 ] as const;
 
 export default function SearchPage() {
-  const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<string>("hybrid");
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-5xl px-4 py-16 font-mono text-xs uppercase tracking-[0.16em] text-faint">Loading search…</div>}>
+      <SearchRoute />
+    </Suspense>
+  );
+}
+
+function SearchRoute() {
+  const searchParams = useSearchParams();
+  return <SearchInterface key={searchParams.toString()} searchParams={searchParams} />;
+}
+
+function SearchInterface({ searchParams }: { searchParams: ReturnType<typeof useSearchParams> }) {
+  const initialCommunity = searchParams.get("community");
+  const initialQuery = searchParams.get("q")?.trim() ?? "";
+  const requestedMode = searchParams.get("mode") ?? "hybrid";
+  const initialMode = MODES.some((item) => item.id === requestedMode)
+    ? requestedMode
+    : "hybrid";
+
+  const [query, setQuery] = useState(initialQuery);
+  const [mode, setMode] = useState<string>(initialMode);
   const [response, setResponse] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [community] = useState<string | null>(initialCommunity);
   const failed = searched && !loading && response === null;
 
-  const run = useCallback(
-    async (nextMode?: string) => {
-      const activeMode = nextMode ?? mode;
-      if (query.trim().length < 2) return;
+  const execute = useCallback(
+    async (searchQuery: string, activeMode: string, activeCommunity: string | null) => {
+      if (searchQuery.length < 2 && !activeCommunity) return;
       setLoading(true);
       setSearched(true);
-      const result = await api.search(query.trim(), activeMode);
+      const result = await api.search(searchQuery, activeMode, {
+        community: activeCommunity ?? undefined,
+      });
       setResponse(result);
       setLoading(false);
     },
-    [query, mode],
+    [],
   );
+
+  const run = useCallback(
+    async (nextMode?: string) => {
+      await execute(query.trim(), nextMode ?? mode, community);
+    },
+    [community, execute, mode, query],
+  );
+
+  useEffect(() => {
+    if (!initialCommunity && initialQuery.length < 2) return;
+    const timer = window.setTimeout(() => {
+      void execute(initialQuery, initialMode, initialCommunity);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [execute, initialCommunity, initialMode, initialQuery]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-8 sm:py-16">
@@ -59,13 +98,13 @@ export default function SearchPage() {
               setQuery(nextQuery);
               setSaved(hasSavedSearch(nextQuery, mode));
             }}
-            placeholder="developer complaints about authentication…"
+            placeholder={community ? `Search within ${community}…` : "developer complaints about authentication…"}
             className="field-control w-full"
             aria-label="Search query"
           />
           <button
             type="submit"
-            disabled={loading || query.trim().length < 2}
+            disabled={loading || (query.trim().length < 2 && !community)}
             className="editorial-button shrink-0 disabled:opacity-40"
           >
             {loading ? "Searching…" : "Search"}
@@ -110,6 +149,17 @@ export default function SearchPage() {
         </div>
       </form>
 
+      {community ? (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-2 border-fg bg-panel px-4 py-3">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em]">
+            Browsing community / <span className="text-ember">{community}</span>
+          </p>
+          <Link className="editorial-link text-xs" href="/search">
+            Clear community →
+          </Link>
+        </div>
+      ) : null}
+
       <div className="mt-10">
         {failed ? (
           <div className="rounded-lg border border-line bg-surface p-5">
@@ -122,7 +172,9 @@ export default function SearchPage() {
         ) : null}
         {searched && !loading && response && response.results.length === 0 ? (
           <p className="font-mono text-xs text-faint">
-            NO MATCHES — try semantic mode, or broaden the phrasing.
+            {community && !query
+              ? "NO INDEXED CONVERSATIONS FOUND FOR THIS COMMUNITY."
+              : "NO MATCHES — try semantic mode, or broaden the phrasing."}
           </p>
         ) : null}
         <ul className="divide-y divide-line">

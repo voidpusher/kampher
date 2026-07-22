@@ -163,17 +163,23 @@ export default async function InsightsPage() {
         </div>
         <div className="mt-6 grid gap-px border hairline bg-line sm:grid-cols-2 lg:grid-cols-4">
           {insights.top_communities.map((community, index) => (
-            <div className="group bg-ink p-5 transition-colors hover:bg-panel" key={community.label}>
+            <Link
+              aria-label={`Browse ${community.label} conversations`}
+              className="group block bg-ink p-5 transition-colors hover:bg-panel focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+              href={`/search?community=${encodeURIComponent(community.label)}&mode=keyword`}
+              key={community.label}
+            >
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[10px] text-faint">{String(index + 1).padStart(2, "0")}</span>
                 <span className="font-mono text-xs tabular-nums text-muted">
                   {number.format(community.count)}
                 </span>
               </div>
-              <p className="mt-8 truncate text-sm transition-colors group-hover:text-accent">
-                {community.label}
+              <p className="mt-8 flex items-center justify-between gap-3 text-sm transition-colors group-hover:text-accent">
+                <span className="truncate">{community.label}</span>
+                <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">â†’</span>
               </p>
-            </div>
+            </Link>
           ))}
         </div>
       </section>

@@ -74,6 +74,7 @@ class VectorStore:
         # Creating them is idempotent, so existing deployments are upgraded too.
         for field_name, field_schema in (
             ("source", PayloadSchemaType.KEYWORD),
+            ("community", PayloadSchemaType.KEYWORD),
             ("industry_slug", PayloadSchemaType.KEYWORD),
             ("posted_at_ts", PayloadSchemaType.FLOAT),
         ):
@@ -105,6 +106,7 @@ class VectorStore:
         vector: list[float],
         limit: int = 20,
         source: str | None = None,
+        community: str | None = None,
         industry_slug: str | None = None,
         posted_after: datetime | None = None,
         score_threshold: float | None = None,
@@ -112,6 +114,8 @@ class VectorStore:
         conditions: list[FieldCondition] = []
         if source:
             conditions.append(FieldCondition(key="source", match=MatchValue(value=source)))
+        if community:
+            conditions.append(FieldCondition(key="community", match=MatchValue(value=community)))
         if industry_slug:
             conditions.append(
                 FieldCondition(key="industry_slug", match=MatchValue(value=industry_slug))

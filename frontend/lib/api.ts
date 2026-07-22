@@ -241,11 +241,12 @@ export const api = {
       3600,
     ),
 
-  search: (q: string, mode: string) =>
-    get<SearchResponse>(
-      `/search?q=${encodeURIComponent(q)}&mode=${encodeURIComponent(mode)}`,
-      0,
-    ),
+  search: (q: string, mode: string, filters?: { community?: string; source?: string }) => {
+    const query = new URLSearchParams({ q, mode });
+    if (filters?.community) query.set("community", filters.community);
+    if (filters?.source) query.set("source", filters.source);
+    return get<SearchResponse>(`/search?${query}`, 0);
+  },
 
   signalPreview: () =>
     get<SearchResponse>("/search?q=manual%20workaround&mode=keyword", 300),
