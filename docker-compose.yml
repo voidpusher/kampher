@@ -1,0 +1,89 @@
+name: kampher
+
+x-backend-env: &backend-env
+  env_file: .env
+  environment:
+    KAMPHER_DATABASE_URL: postgresql+asyncpg://kampher:kampher@postgres:5432/kampher
+    KAMPHER_DATABASE_URL_SYNC: postgresql+psycopg://kampher:kampher@postgres:5432/kampher
+    KAMPHER_REDIS_URL: redis://redis:6379/0
+    KAMPHER_QDRANT_URL: http://qdrant:6333
+
+x-backend-build: &backend-build
+  build:
+    context: ./backend
+  volumes:
+    - hf-cache:/root/.cache/huggingface
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    qdrant:
+      condition: service_started
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kampher
+      POSTGRES_PASSWORD: kampher
+      POSTGRES_DB: kampher
+    ports: ["5432:5432"]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kampher"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports: ["6333:6333", "6334:6334"]
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+  api:
+    <<: [*backend-build, *backend-env]
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker-ingest:
+    <<: [*backend-build, *backend-env]
+    command: celery -A app.workers.celery_app worker -Q collect,clean,embed -l info --concurrency=4
+
+  worker-intelligence:
+    <<: [*backend-build, *backend-env]
+    command: celery -A app.workers.celery_app worker -Q enrich,intelligence,reports,alerts -l info --concurrency=4
+
+  beat:
+    <<: [*backend-build, *backend-env]
+    command: celery -A app.workers.celery_app beat -l info
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports: ["3000:3000"]
+    depends_on:
+      - api
+
+volumes:
+  pg-data:
+  qdrant-data:
+  hf-cache:

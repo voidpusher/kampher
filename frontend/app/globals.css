@@ -1,0 +1,256 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Kampher — brutalist pop.
+   Warm white paper, black ink, electric yellow fields, violet interaction,
+   red for exceptional signal. Loud but lawful: every surface is a solid —
+   no gradients, no translucency, no glass. Depth = hard offset shadows.
+   Drama = scale, rotation, and outlined type. */
+
+:root {
+  color-scheme: light;
+  --ink: #0a0a0a;
+  --signal: #6c2bd9;
+  --yolk: #ffe600;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-ink text-fg antialiased;
+  font-feature-settings: "ss01", "tnum";
+  min-width: 320px;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--yolk);
+  color: var(--ink);
+}
+
+@keyframes editorial-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.editorial-enter {
+  animation: editorial-enter 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Hairline dividers — black, always. */
+.hairline {
+  @apply border-line;
+}
+
+.swiss-rule {
+  @apply block h-1 w-full bg-fg;
+}
+
+/* Outlined display type: ink stroke, hollow fill. */
+.outline-text {
+  -webkit-text-stroke: 2.5px #0a0a0a;
+  color: transparent;
+}
+
+.outline-text-white {
+  -webkit-text-stroke: 2.5px #fffdf5;
+  color: transparent;
+}
+
+/* Hard offset shadows — solid, never blurred. */
+.shadow-hard {
+  box-shadow: 6px 6px 0 #0a0a0a;
+}
+
+.shadow-hard-sm {
+  box-shadow: 4px 4px 0 #0a0a0a;
+}
+
+/* Extruded 3D type: stacked SOLID shadows, one pixel at a time. */
+.text-3d-ember {
+  text-shadow:
+    1px 1px 0 #6c2bd9,
+    2px 2px 0 #6c2bd9,
+    3px 3px 0 #6c2bd9,
+    4px 4px 0 #6c2bd9,
+    5px 5px 0 #6c2bd9,
+    6px 6px 0 #6c2bd9;
+}
+
+.text-3d-ink {
+  text-shadow:
+    1px 1px 0 #0a0a0a,
+    2px 2px 0 #0a0a0a,
+    3px 3px 0 #0a0a0a,
+    4px 4px 0 #0a0a0a,
+    5px 5px 0 #0a0a0a;
+}
+
+.text-3d-yolk {
+  text-shadow:
+    1px 1px 0 #ffe600,
+    2px 2px 0 #ffe600,
+    3px 3px 0 #ffe600,
+    4px 4px 0 #ffe600,
+    5px 5px 0 #ffe600;
+}
+
+/* Deep extruded headline: a tall violet wall dropping off into black —
+   twice the depth of the standard ember stack. */
+.text-3d-ember-xl {
+  text-shadow:
+    1px 1px 0 #6c2bd9,
+    2px 2px 0 #6c2bd9,
+    3px 3px 0 #6c2bd9,
+    4px 4px 0 #6c2bd9,
+    5px 5px 0 #6c2bd9,
+    6px 6px 0 #6c2bd9,
+    7px 7px 0 #6c2bd9,
+    8px 8px 0 #5620b0,
+    9px 9px 0 #5620b0,
+    10px 10px 0 #0a0a0a;
+}
+
+/* Isometric extruded block: a chunky violet side wall ending in a black
+   back edge. Solid only — reads as a physical slab lifted off the page. */
+.extrude {
+  box-shadow:
+    3px 3px 0 #6c2bd9,
+    6px 6px 0 #6c2bd9,
+    9px 9px 0 #6c2bd9,
+    12px 12px 0 #5620b0,
+    14px 14px 0 #0a0a0a;
+}
+
+.extrude-yolk {
+  box-shadow:
+    3px 3px 0 #ffe600,
+    6px 6px 0 #ffe600,
+    9px 9px 0 #ffe600,
+    12px 12px 0 #b8a600,
+    14px 14px 0 #0a0a0a;
+}
+
+/* Stacked paper: two solid sheets behind the card — physical depth,
+   zero blur. Parent needs position:relative. */
+.paper-stack {
+  position: relative;
+}
+
+.paper-stack::before,
+.paper-stack::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid #0a0a0a;
+  z-index: -1;
+}
+
+.paper-stack::before {
+  transform: translate(9px, 9px);
+  background: #6c2bd9;
+}
+
+.paper-stack::after {
+  transform: translate(18px, 18px);
+  background: #ffe600;
+}
+
+/* Stickers bob like they're barely stuck on. */
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--floaty-rotate, -3deg));
+  }
+  50% {
+    transform: translateY(-7px) rotate(var(--floaty-rotate, -3deg));
+  }
+}
+
+.floaty {
+  animation: floaty 3.2s ease-in-out infinite;
+}
+
+.floaty-delayed {
+  animation: floaty 3.8s ease-in-out 0.6s infinite;
+}
+
+/* Sticker: rotated bordered pill that looks slapped on. */
+.sticker {
+  @apply inline-flex items-center gap-2 rounded-full border-2 border-fg bg-yolk px-4 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-fg;
+}
+
+/* Evidence tape: duplicated content, -50% loop, slight tilt at call site. */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker {
+  animation: ticker-scroll 40s linear infinite;
+}
+
+.ticker:hover {
+  animation-play-state: paused;
+}
+
+.nav-scroll {
+  scrollbar-width: none;
+}
+
+.nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editorial-enter,
+  .ticker,
+  .floaty,
+  .floaty-delayed {
+    animation: none;
+  }
+}
+
+:focus-visible {
+  outline: 3px solid var(--signal);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .editorial-label {
+    @apply font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-faint;
+  }
+
+  .editorial-button {
+    @apply shadow-hard-sm inline-flex items-center justify-center border-2 border-fg bg-ember px-6 py-3 text-sm font-bold uppercase tracking-[0.06em] text-white transition-transform duration-100 hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-1 active:translate-y-1 active:shadow-none;
+  }
+
+  .editorial-button-secondary {
+    @apply shadow-hard-sm inline-flex items-center justify-center border-2 border-fg bg-yolk px-6 py-3 text-sm font-bold uppercase tracking-[0.06em] text-fg transition-transform duration-100 hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-1 active:translate-y-1 active:shadow-none;
+  }
+
+  .editorial-link {
+    @apply text-sm font-bold uppercase tracking-[0.06em] text-ember underline decoration-2 underline-offset-4 transition-colors hover:text-fg;
+  }
+
+  .field-control {
+    @apply border-2 border-fg bg-surface px-4 py-3 text-sm text-fg placeholder:text-faint outline-none transition-colors focus:bg-panel;
+  }
+
+  .card {
+    @apply border-2 border-fg bg-surface;
+  }
+}

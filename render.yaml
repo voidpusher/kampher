@@ -1,0 +1,33 @@
+# Render blueprint: deploys the Kampher API from this repo.
+# Free tier: 512MB RAM (fits the fastembed ONNX embedder), sleeps after
+# 15 min idle (~50s cold start on first request).
+services:
+  - type: web
+    name: kampher-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /health/live
+    dockerCommand: uvicorn app.api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: KAMPHER_ENV
+        value: prod
+      - key: KAMPHER_EMBEDDING_PROVIDER
+        value: fastembed
+      - key: KAMPHER_EMBEDDING_MODEL
+        value: BAAI/bge-small-en-v1.5
+      - key: KAMPHER_EMBEDDING_DIM
+        value: "384"
+      - key: KAMPHER_REDIS_HEALTH_CHECK
+        value: "false"
+      # Set these in the Render dashboard (Neon + Qdrant Cloud credentials):
+      - key: KAMPHER_DATABASE_URL        # postgresql+asyncpg://...?ssl=require
+        sync: false
+      - key: KAMPHER_DATABASE_URL_SYNC   # postgresql+psycopg://...?sslmode=require
+        sync: false
+      - key: KAMPHER_QDRANT_URL          # https://xyz.cloud.qdrant.io:6333
+        sync: false
+      - key: KAMPHER_QDRANT_API_KEY
+        sync: false
+      - key: KAMPHER_CORS_ORIGINS
+        value: '["https://kampher.vercel.app"]'

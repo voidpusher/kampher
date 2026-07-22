@@ -1,0 +1,139 @@
+name: Near-real-time production refresh
+
+on:
+  schedule:
+    # Public feeds: every 15 minutes. GitHub schedules can occasionally be delayed.
+    - cron: "*/15 * * * *"
+    # Stack Overflow: every two hours to stay below its anonymous 300 req/day quota.
+    - cron: "7 */2 * * *"
+    # Bounded intelligence pass: 07:10 IST daily.
+    - cron: "40 1 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: kampher-production-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  fast-source-refresh:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/15 * * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      KAMPHER_ENV: prod
+      KAMPHER_DATABASE_URL: ${{ secrets.KAMPHER_DATABASE_URL }}
+      KAMPHER_DATABASE_URL_SYNC: ${{ secrets.KAMPHER_DATABASE_URL_SYNC }}
+      KAMPHER_QDRANT_URL: ${{ secrets.KAMPHER_QDRANT_URL }}
+      KAMPHER_QDRANT_API_KEY: ${{ secrets.KAMPHER_QDRANT_API_KEY }}
+      KAMPHER_REDDIT_CLIENT_ID: ${{ secrets.KAMPHER_REDDIT_CLIENT_ID }}
+      KAMPHER_REDDIT_CLIENT_SECRET: ${{ secrets.KAMPHER_REDDIT_CLIENT_SECRET }}
+      KAMPHER_REDDIT_USER_AGENT: kampher/0.1 (production collector)
+      KAMPHER_QDRANT_PATH: ""
+      KAMPHER_STACKOVERFLOW_ENABLED: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install backend dependencies
+        run: uv sync --frozen --no-dev
+      - name: Apply database migrations
+        run: uv run alembic upgrade head
+      - name: Sync official tech polls
+        run: uv run python -m app.db.seed_tech_polls
+      - name: Collect and index only new conversations
+        run: uv run python -m app.workers.run_once refresh
+
+  stackoverflow-refresh:
+    if: github.event.schedule == '7 */2 * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      KAMPHER_ENV: prod
+      KAMPHER_DATABASE_URL: ${{ secrets.KAMPHER_DATABASE_URL }}
+      KAMPHER_DATABASE_URL_SYNC: ${{ secrets.KAMPHER_DATABASE_URL_SYNC }}
+      KAMPHER_QDRANT_URL: ${{ secrets.KAMPHER_QDRANT_URL }}
+      KAMPHER_QDRANT_API_KEY: ${{ secrets.KAMPHER_QDRANT_API_KEY }}
+      KAMPHER_QDRANT_PATH: ""
+      KAMPHER_HN_ENABLED: "false"
+      KAMPHER_DEVTO_ENABLED: "false"
+      KAMPHER_LOBSTERS_ENABLED: "false"
+      KAMPHER_STACKOVERFLOW_ENABLED: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install backend dependencies
+        run: uv sync --frozen --no-dev
+      - name: Apply database migrations
+        run: uv run alembic upgrade head
+      - name: Collect and index only new Stack Overflow posts
+        run: uv run python -m app.workers.run_once refresh
+
+  intelligence-refresh:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '40 1 * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      KAMPHER_ENV: prod
+      KAMPHER_DATABASE_URL: ${{ secrets.KAMPHER_DATABASE_URL }}
+      KAMPHER_DATABASE_URL_SYNC: ${{ secrets.KAMPHER_DATABASE_URL_SYNC }}
+      KAMPHER_QDRANT_URL: ${{ secrets.KAMPHER_QDRANT_URL }}
+      KAMPHER_QDRANT_API_KEY: ${{ secrets.KAMPHER_QDRANT_API_KEY }}
+      KAMPHER_QDRANT_PATH: ""
+      KAMPHER_LLM_PROVIDER: gemini
+      KAMPHER_LLM_MODEL: gemini-3.5-flash
+      KAMPHER_LLM_MODEL_FAST: gemini-3.1-flash-lite
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Check intelligence configuration
+        id: intelligence
+        shell: bash
+        run: |
+          if [ -n "$GEMINI_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Add GEMINI_API_KEY to enable the intelligence pipeline."
+          fi
+      - name: Install backend dependencies
+        if: steps.intelligence.outputs.enabled == 'true'
+        run: uv sync --frozen --no-dev
+      - name: Apply database migrations
+        if: steps.intelligence.outputs.enabled == 'true'
+        run: uv run alembic upgrade head
+      - name: Enrich a bounded batch
+        if: steps.intelligence.outputs.enabled == 'true'
+        run: uv run python -m app.workers.run_once enrich
+      - name: Cluster pain and publish eligible opportunities
+        if: steps.intelligence.outputs.enabled == 'true'
+        run: uv run python -m app.workers.run_once cluster
+      - name: Write trend snapshots
+        if: steps.intelligence.outputs.enabled == 'true'
+        run: uv run python -m app.workers.run_once trends
