@@ -17,7 +17,7 @@ export default async function LandingPage() {
   return (
     <div className="overflow-x-clip">
       {/* ── Hero: stickers, outlined type, tilted console ──────────── */}
-      <section className="relative mx-auto grid max-w-[1400px] items-center gap-14 px-4 pb-24 pt-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:pt-20">
+      <section className="relative mx-auto grid max-w-[1400px] grid-cols-[minmax(0,1fr)] items-center gap-16 px-4 pb-24 pt-12 sm:px-6 sm:pt-14 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-12 lg:pb-28 lg:pt-20">
         {/* Depth stage: one quiet shape parked in the far margin — it
             parallaxes against the pointer without crowding the text. */}
         <Scene aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-visible" perspective={800}>
@@ -25,7 +25,7 @@ export default async function LandingPage() {
             <div className="h-12 w-12 rotate-45 border-2 border-fg bg-ember shadow-hard-sm" />
           </SceneLayer>
         </Scene>
-        <div className="editorial-enter">
+        <div className="editorial-enter min-w-0">
           <div className="flex flex-wrap gap-3">
             <span className="sticker floaty" style={{ "--floaty-rotate": "-3deg" } as React.CSSProperties}>
               <span className="h-2 w-2 rounded-full bg-alarm" /> Live signal
@@ -34,7 +34,7 @@ export default async function LandingPage() {
               100% public data
             </span>
           </div>
-          <h1 className="mt-8 font-display text-[clamp(3.4rem,8vw,7.5rem)] uppercase leading-[0.92]">
+          <h1 className="mt-8 max-w-full font-display text-[clamp(3.2rem,14vw,5rem)] uppercase leading-[0.9] sm:text-[clamp(4.5rem,10vw,6.5rem)] lg:text-[clamp(4.5rem,6.5vw,6.75rem)]">
             <span className="block">The internet</span>
             <span className="outline-text block">is screaming</span>
             <span className="block bg-fg px-3 text-yolk">what to build.</span>
@@ -55,7 +55,7 @@ export default async function LandingPage() {
         </div>
 
         {/* The console: paper-stacked, follows the pointer in 3D */}
-        <Tilt3D className="rotate-1" maxDeg={8}>
+        <Tilt3D className="min-w-0 pb-[18px] pr-[18px] sm:rotate-1" maxDeg={8}>
           <div className="paper-stack border-2 border-fg bg-surface">
           <div className="flex items-center justify-between border-b-2 border-fg bg-fg px-5 py-3 text-ink">
             <span className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-yolk">
