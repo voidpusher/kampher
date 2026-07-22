@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from app.ai.pipeline.signals import has_pain_signal
 from app.collectors.schema import RawDocument
 from app.models import Author, Enrichment, Post, SourceCursor
 from app.models.enums import EnrichmentStatus, Source
@@ -113,13 +114,40 @@ class IngestionRepository:
     # ── enrichment bookkeeping ──────────────────────────────────────────
 
     def pending_post_ids(self, limit: int = 200) -> list[uuid.UUID]:
-        rows = self.session.scalars(
-            select(Post.id)
-            .where(Post.enrichment_status == EnrichmentStatus.PENDING)
-            .order_by(Post.collected_at)
-            .limit(limit)
+        """Return likely product-signal documents before generic backlog items.
+
+        A chronological queue allowed thousands of news links to block explicit
+        complaints and questions. Pull a bounded recent candidate pool and rank
+        clear pain language plus discussion sources first. The LLM still makes
+        the final classification; this only controls processing order.
+        """
+        candidate_limit = max(limit * 40, 500)
+        rows = list(
+            self.session.scalars(
+                select(Post)
+                .where(Post.enrichment_status == EnrichmentStatus.PENDING)
+                .order_by(Post.collected_at.desc())
+                .limit(candidate_limit)
+            )
         )
-        return list(rows)
+
+        discussion_sources = {
+            Source.REDDIT,
+            Source.GITHUB_ISSUES,
+            Source.GITHUB_DISCUSSIONS,
+            Source.STACKOVERFLOW,
+        }
+
+        def priority(post: Post) -> tuple[int, int, float]:
+            text = f"{post.title or ''}\n{post.body}"
+            return (
+                0 if has_pain_signal(text) else 1,
+                0 if post.source in discussion_sources else 1,
+                -post.posted_at.timestamp(),
+            )
+
+        rows.sort(key=priority)
+        return [post.id for post in rows[:limit]]
 
     def get_post(self, post_id: uuid.UUID) -> Post | None:
         return self.session.get(Post, post_id)

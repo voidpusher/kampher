@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/feed", label: "Feed" },
   { href: "/insights", label: "Insights" },
+  { href: "/trends", label: "Trends" },
   { href: "/polls", label: "Polls" },
   { href: "/search", label: "Search" },
   { href: "/saved", label: "Saved" },
@@ -43,7 +44,7 @@ export function Nav() {
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-5 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-4 md:flex">
           {LINKS.map((link) => {
             const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (

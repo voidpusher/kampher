@@ -6,8 +6,8 @@ on:
     - cron: "*/15 * * * *"
     # Stack Overflow: every two hours to stay below its anonymous 300 req/day quota.
     - cron: "7 */2 * * *"
-    # Bounded intelligence pass: 07:10 IST daily.
-    - cron: "40 1 * * *"
+    # Bounded intelligence pass every six hours so the public feed stays useful.
+    - cron: "40 */6 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -87,7 +87,7 @@ jobs:
         run: uv run python -m app.workers.run_once refresh
 
   intelligence-refresh:
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '40 1 * * *'
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '40 */6 * * *'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -128,9 +128,9 @@ jobs:
       - name: Apply database migrations
         if: steps.intelligence.outputs.enabled == 'true'
         run: uv run alembic upgrade head
-      - name: Enrich a bounded batch
+      - name: Enrich a bounded, failure-isolated batch
         if: steps.intelligence.outputs.enabled == 'true'
-        run: uv run python -m app.workers.run_once enrich
+        run: uv run python -m app.workers.run_once enrich 25
       - name: Cluster pain and publish eligible opportunities
         if: steps.intelligence.outputs.enabled == 'true'
         run: uv run python -m app.workers.run_once cluster

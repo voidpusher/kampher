@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { ScoreChip } from "@/components/score-chip";
-import { api } from "@/lib/api";
+import { api, SOURCE_LABELS } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Opportunity feed" };
@@ -12,9 +12,10 @@ export default async function FeedPage({
   searchParams: Promise<{ industry?: string; cursor?: string }>;
 }) {
   const params = await searchParams;
-  const [page, industries] = await Promise.all([
+  const [page, industries, earlySignals] = await Promise.all([
     api.opportunities({ industry: params.industry, cursor: params.cursor, limit: 30 }),
     api.industries(),
+    api.search("frustrated workaround missing feature difficult manual", "keyword"),
   ]);
 
   return (
@@ -47,7 +48,20 @@ export default async function FeedPage({
       ) : null}
 
       {/* The list */}
-      {!page || page.items.length === 0 ? (
+      {!page ? (
+        <div className="card mt-10 border-alarm p-8">
+          <h2 className="font-display text-xl font-bold tracking-tight">
+            The intelligence API is temporarily unavailable.
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+            The evidence corpus is preserved. Try Search or retry this page shortly.
+          </p>
+          <Link className="editorial-button mt-5 inline-flex" href="/search">
+            Search evidence
+          </Link>
+        </div>
+      ) : page.items.length === 0 ? (
+        <div className="mt-10">
         <div className="card mt-10 grid gap-6 p-8 sm:grid-cols-[1fr_auto] sm:items-center">
           <div>
             <h2 className="font-display text-xl font-bold tracking-tight">
@@ -67,6 +81,36 @@ export default async function FeedPage({
               Ask Kampher
             </Link>
           </div>
+        </div>
+          {earlySignals?.results.length ? (
+            <section className="mt-12" aria-labelledby="early-signals-title">
+              <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-fg pb-4">
+                <div>
+                  <p className="editorial-label text-ember">Live evidence / unscored</p>
+                  <h2 id="early-signals-title" className="mt-2 font-display text-2xl uppercase">
+                    Early problem signals
+                  </h2>
+                </div>
+                <Link className="editorial-link" href="/search">Explore the corpus →</Link>
+              </div>
+              <ol className="divide-y divide-line">
+                {earlySignals.results.slice(0, 8).map(({ post, matched_by }, index) => (
+                  <li key={post.id}>
+                    <a className="group grid gap-3 py-5 sm:grid-cols-[3rem_1fr_auto] sm:items-start" href={post.url} rel="noreferrer" target="_blank">
+                      <span className="font-display text-xl text-faint">{String(index + 1).padStart(2, "0")}</span>
+                      <span>
+                        <span className="block font-medium leading-snug group-hover:text-ember">{post.title ?? post.body.split("\n")[0] ?? "Untitled conversation"}</span>
+                        {post.body ? <span className="mt-1 line-clamp-2 block text-sm leading-6 text-muted">{post.body}</span> : null}
+                      </span>
+                      <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-faint">
+                        {SOURCE_LABELS[post.source] ?? post.source} · {matched_by}
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ) : null}
         </div>
       ) : (
         <ol className="mt-10 space-y-5">

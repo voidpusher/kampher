@@ -100,7 +100,7 @@ export default function SearchPage() {
             )}
             disabled={saved || query.trim().length < 2}
             onClick={() => {
-              saveSearch(query, mode as SavedSearchMode);
+              saveSearch(query.trim(), mode as SavedSearchMode);
               setSaved(true);
             }}
             type="button"

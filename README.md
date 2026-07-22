@@ -52,10 +52,6 @@ make db-upgrade               # apply migrations
 make seed                     # taxonomy seed (industries, topics)
 ```
 
-- API: http://localhost:8000/docs
-- Frontend: http://localhost:3000
-- Qdrant dashboard: http://localhost:6333/dashboard
-
 ### Local development (no Docker for the app itself)
 
 ```bash

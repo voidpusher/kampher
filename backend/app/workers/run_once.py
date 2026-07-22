@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     import uuid
 
 
-def main(step: str) -> None:
+def main(step: str, batch_size: int | None = None) -> None:
     configure_logging()
 
     if step in {"collect", "refresh"}:
@@ -66,11 +66,30 @@ def main(step: str) -> None:
         from app.services.enrichment import EnrichmentService
 
         with worker_session() as session:
-            pending = IngestionRepository(session).pending_post_ids(limit=25)
+            pending = IngestionRepository(session).pending_post_ids(limit=batch_size or 25)
+        enriched = gated = failed = 0
         for post_id in pending:
-            with worker_session() as session:
-                outcome = EnrichmentService(session).enrich_post(post_id)
+            try:
+                with worker_session() as session:
+                    outcome = EnrichmentService(session).enrich_post(post_id)
+            except Exception as exc:  # noqa: BLE001 - isolate provider failures
+                failed += 1
+                log.error(
+                    "enrichment item failed",
+                    post_id=str(post_id),
+                    error=type(exc).__name__,
+                )
+                continue
+            enriched += outcome == "enriched"
+            gated += outcome == "gated"
             log.info("enriched", post_id=str(post_id), outcome=outcome)
+        log.info(
+            "enrichment batch complete",
+            requested=len(pending),
+            enriched=enriched,
+            gated=gated,
+            failed=failed,
+        )
 
     elif step == "embed":
         # Embed collected posts for semantic search. Runs without any LLM —
@@ -120,6 +139,6 @@ def main(step: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in {2, 3}:
         raise SystemExit(__doc__)
-    main(sys.argv[1])
+    main(sys.argv[1], int(sys.argv[2]) if len(sys.argv) == 3 else None)

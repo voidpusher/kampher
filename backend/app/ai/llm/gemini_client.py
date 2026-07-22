@@ -29,7 +29,7 @@ class GeminiClient(BaseLLMClient):
         self.settings = settings or get_settings()
         if self.settings.gemini_api_key is None:
             raise ConfigurationError("GEMINI_API_KEY is not set")
-        self._client = genai.Client(api_key=self.settings.gemini_api_key.get_secret_value())
+        self._api_key = self.settings.gemini_api_key.get_secret_value()
         self.log = get_logger("llm.gemini")
 
     def _model_for(self, tier: ModelTier) -> str:
@@ -99,46 +99,60 @@ class GeminiClient(BaseLLMClient):
         tier: ModelTier,
         max_tokens: int,
     ) -> types.GenerateContentResponse:
-        async for attempt in AsyncRetrying(
-            stop=stop_after_attempt(4),
-            wait=wait_exponential_jitter(initial=2, max=45),
-            retry=retry_if_exception_type(LLMError),
-            reraise=True,
-        ):
-            with attempt:
+        # The synchronous worker entrypoint creates a fresh event loop per
+        # document. google-genai's async HTTP client is loop-bound, so keeping a
+        # client on this cached service object makes the second document fail
+        # with "Event loop is closed". Scope it to this active loop instead.
+        client = genai.Client(api_key=self._api_key)
 
-                async def generate(selected_model: str) -> types.GenerateContentResponse:
-                    return await self._client.aio.models.generate_content(
-                        model=selected_model,
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            system_instruction=system,
-                            max_output_tokens=max_tokens,
-                            thinking_config=types.ThinkingConfig(
-                                thinking_level=("medium" if tier is ModelTier.DEEP else "minimal")
+        async def request() -> types.GenerateContentResponse:
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(4),
+                wait=wait_exponential_jitter(initial=2, max=45),
+                retry=retry_if_exception_type(LLMError),
+                reraise=True,
+            ):
+                with attempt:
+
+                    async def generate(selected_model: str) -> types.GenerateContentResponse:
+                        return await client.aio.models.generate_content(
+                            model=selected_model,
+                            contents=prompt,
+                            config=types.GenerateContentConfig(
+                                system_instruction=system,
+                                max_output_tokens=max_tokens,
+                                thinking_config=types.ThinkingConfig(
+                                    thinking_level=(
+                                        "medium" if tier is ModelTier.DEEP else "minimal"
+                                    )
+                                ),
+                                response_mime_type="application/json",
+                                response_json_schema=schema.model_json_schema(),
                             ),
-                            response_mime_type="application/json",
-                            response_json_schema=schema.model_json_schema(),
-                        ),
-                    )
-
-                try:
-                    return await generate(model)
-                except errors.APIError as exc:
-                    if exc.code in {429, 503} and model != _FALLBACK_MODEL:
-                        self.log.warning(
-                            "primary gemini model busy; trying latency fallback",
-                            model=model,
-                            fallback_model=_FALLBACK_MODEL,
-                            status_code=exc.code,
                         )
-                        try:
-                            return await generate(_FALLBACK_MODEL)
-                        except errors.APIError as fallback_exc:
-                            exc = fallback_exc
-                    if exc.code == 429 or exc.code >= 500:
-                        raise LLMError(str(exc), model=model, status_code=exc.code) from exc
-                    raise LLMOutputInvalidError(
-                        str(exc), model=model, status_code=exc.code
-                    ) from exc
-        raise AssertionError("unreachable")
+
+                    try:
+                        return await generate(model)
+                    except errors.APIError as exc:
+                        if exc.code in {429, 503} and model != _FALLBACK_MODEL:
+                            self.log.warning(
+                                "primary gemini model busy; trying latency fallback",
+                                model=model,
+                                fallback_model=_FALLBACK_MODEL,
+                                status_code=exc.code,
+                            )
+                            try:
+                                return await generate(_FALLBACK_MODEL)
+                            except errors.APIError as fallback_exc:
+                                exc = fallback_exc
+                        if exc.code == 429 or exc.code >= 500:
+                            raise LLMError(str(exc), model=model, status_code=exc.code) from exc
+                        raise LLMOutputInvalidError(
+                            str(exc), model=model, status_code=exc.code
+                        ) from exc
+            raise AssertionError("unreachable")
+
+        try:
+            return await request()
+        finally:
+            await client.aio.aclose()

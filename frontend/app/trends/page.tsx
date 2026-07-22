@@ -6,7 +6,11 @@ import { heatColor } from "@/lib/utils";
 export const metadata = { title: "Trend explorer" };
 
 export default async function TrendsPage() {
-  const trends = await api.trends(40);
+  const [trends, insights] = await Promise.all([api.trends(40), api.insights()]);
+  const peakActivity = Math.max(
+    ...(insights?.daily_activity.map((day) => day.count) ?? [1]),
+    1,
+  );
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-12 sm:px-8 sm:py-16">
@@ -28,6 +32,30 @@ export default async function TrendsPage() {
           <Link className="editorial-link mt-5 inline-flex" href="/insights">
             View corpus activity →
           </Link>
+          {insights?.daily_activity.length ? (
+            <div className="mt-8 border-t border-line pt-6">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
+                Live conversation volume while problem history accumulates
+              </p>
+              <div
+                aria-label="Daily indexed conversation activity"
+                className="mt-4 flex h-32 items-end gap-1"
+              >
+                {insights.daily_activity.map((day) => (
+                  <span
+                    className="min-w-1 flex-1 bg-ember transition-opacity hover:opacity-70"
+                    key={day.date}
+                    style={{ height: `${Math.max(4, (day.count / peakActivity) * 100)}%` }}
+                    title={`${day.date}: ${day.count.toLocaleString()} conversations`}
+                  />
+                ))}
+              </div>
+              <div className="mt-2 flex justify-between font-mono text-[9px] text-faint">
+                <span>{insights.daily_activity[0]?.date}</span>
+                <span>{insights.daily_activity.at(-1)?.date}</span>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="mt-10 overflow-x-auto">
