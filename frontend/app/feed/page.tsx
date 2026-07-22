@@ -64,7 +64,7 @@ export default async function FeedPage({
         <div className="mt-10">
         <div className="card mt-10 grid gap-6 p-8 sm:grid-cols-[1fr_auto] sm:items-center">
           <div>
-            <h2 className="font-display text-xl font-bold tracking-tight">
+            <h2 className="text-xl font-bold tracking-[-0.02em] [text-shadow:none] [-webkit-text-stroke:0]">
               The ranked feed is being calibrated.
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
