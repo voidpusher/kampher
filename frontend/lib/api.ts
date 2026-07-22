@@ -9,7 +9,10 @@ const API_URL =
     ? "https://kampher-api.onrender.com"
     : "http://localhost:8000");
 
-const READ_TIMEOUT_MS = 15_000;
+// Server-rendered pages should never hold the document behind a sleeping API.
+// Interactive browser searches can wait longer; public pages fail fast into
+// their cached or useful empty state.
+const READ_TIMEOUT_MS = typeof window === "undefined" ? 8_000 : 15_000;
 
 export type Source =
   | "reddit"
@@ -243,6 +246,9 @@ export const api = {
       `/search?q=${encodeURIComponent(q)}&mode=${encodeURIComponent(mode)}`,
       0,
     ),
+
+  signalPreview: () =>
+    get<SearchResponse>("/search?q=manual%20workaround&mode=keyword", 300),
 
   chat: async (question: string): Promise<ChatResponse | null> => {
     const controller = new AbortController();

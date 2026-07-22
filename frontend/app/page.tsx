@@ -8,7 +8,7 @@ export default async function LandingPage() {
   const [page, insights, evidencePage] = await Promise.all([
     api.opportunities({ limit: 4 }),
     api.insights(),
-    api.search("manual workaround", "hybrid"),
+    api.signalPreview(),
   ]);
   const opportunities = page?.items ?? [];
   const sources = insights?.source_counts ?? [];
@@ -35,7 +35,7 @@ export default async function LandingPage() {
             </span>
           </div>
           <h1 className="mt-8 font-display text-[clamp(3.4rem,8vw,7.5rem)] uppercase leading-[0.92]">
-            <span className="text-3d-ember-xl block">The internet</span>
+            <span className="block">The internet</span>
             <span className="outline-text block">is screaming</span>
             <span className="block bg-fg px-3 text-yolk">what to build.</span>
           </h1>

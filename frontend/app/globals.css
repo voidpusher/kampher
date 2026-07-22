@@ -104,22 +104,6 @@ body {
     5px 5px 0 #ffe600;
 }
 
-/* Deep extruded headline: a tall violet wall dropping off into black —
-   twice the depth of the standard ember stack. */
-.text-3d-ember-xl {
-  text-shadow:
-    1px 1px 0 #6c2bd9,
-    2px 2px 0 #6c2bd9,
-    3px 3px 0 #6c2bd9,
-    4px 4px 0 #6c2bd9,
-    5px 5px 0 #6c2bd9,
-    6px 6px 0 #6c2bd9,
-    7px 7px 0 #6c2bd9,
-    8px 8px 0 #5620b0,
-    9px 9px 0 #5620b0,
-    10px 10px 0 #0a0a0a;
-}
-
 /* Isometric extruded block: a chunky violet side wall ending in a black
    back edge. Solid only — reads as a physical slab lifted off the page. */
 .extrude {
