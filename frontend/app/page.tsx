@@ -8,7 +8,7 @@ export default async function LandingPage() {
   const [page, insights, evidencePage] = await Promise.all([
     api.opportunities({ limit: 4 }),
     api.insights(),
-    api.search("frustrated manual workaround tool", "keyword"),
+    api.search("manual workaround", "hybrid"),
   ]);
   const opportunities = page?.items ?? [];
   const sources = insights?.source_counts ?? [];

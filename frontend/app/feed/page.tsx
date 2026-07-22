@@ -15,7 +15,7 @@ export default async function FeedPage({
   const [page, industries, earlySignals] = await Promise.all([
     api.opportunities({ industry: params.industry, cursor: params.cursor, limit: 30 }),
     api.industries(),
-    api.search("frustrated workaround missing feature difficult manual", "keyword"),
+    api.search("manual workaround", "hybrid"),
   ]);
 
   return (
