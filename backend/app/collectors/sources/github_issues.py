@@ -24,19 +24,21 @@ class GitHubIssuesCollector(BaseCollector):
     requests_per_second = 1.0  # 5000/hr authenticated; stay far below
 
     def enabled(self) -> bool:
-        return bool(self.settings.github_token and self.settings.github_repos)
+        # Public repositories can be read anonymously (at a lower rate limit).
+        return bool(self.settings.github_repos)
 
     def streams(self) -> list[str]:
         return list(self.settings.github_repos)
 
     def _headers(self) -> dict[str, str]:
         token = self.settings.github_token
-        assert token is not None  # guarded by enabled()
-        return {
-            "Authorization": f"Bearer {token.get_secret_value()}",
+        headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         }
+        if token is not None:
+            headers["Authorization"] = f"Bearer {token.get_secret_value()}"
+        return headers
 
     async def collect(self, stream: str, cursor: dict[str, Any]) -> CollectResult:
         params: dict[str, Any] = {

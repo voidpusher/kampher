@@ -9,6 +9,7 @@ from httpx import Response
 from app.collectors.rate_limit import TokenBucket
 from app.collectors.registry import all_collectors
 from app.collectors.schema import RawDocument
+from app.collectors.sources.github_issues import GitHubIssuesCollector
 from app.collectors.sources.hackernews import HackerNewsCollector
 from app.collectors.sources.reddit import RedditCollector
 from app.models.enums import Source
@@ -39,7 +40,6 @@ HN_HIT = {
     "url": None,
     "_tags": ["ask_hn", "story"],
 }
-
 
 class TestRegistry:
     def test_all_launch_sources_registered(self) -> None:
@@ -79,6 +79,15 @@ class TestNormalization:
         variant["selftext"] = "  I keep writing   SPREADSHEET hacks for metered pricing. "
         doc_b = RedditCollector()._normalize(variant)
         assert doc_a.content_hash() == doc_b.content_hash()
+
+    def test_github_issues_can_read_public_repos_without_token(self) -> None:
+        settings = GitHubIssuesCollector().settings.model_copy(
+            update={"github_token": None, "github_repos": ["vercel/next.js"]}
+        )
+        collector = GitHubIssuesCollector(settings)
+
+        assert collector.enabled() is True
+        assert "Authorization" not in collector._headers()
 
 
 SO_QUESTION = {

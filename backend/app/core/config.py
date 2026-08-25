@@ -72,6 +72,7 @@ class Settings(BaseSettings):
 
     github_token: SecretStr | None = None
     github_repos: list[str] = Field(default_factory=list)
+    github_discussions_enabled: bool = True
 
     hn_enabled: bool = True
 

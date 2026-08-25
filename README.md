@@ -3,7 +3,8 @@
 > Discover what people need before they search for a solution.
 
 Kampher is an AI-powered **Opportunity Intelligence Platform**. It continuously ingests
-conversations from the public internet (Reddit, X, GitHub, Hacker News, …), runs every
+conversations from the public internet (GitHub, Hacker News, Stack Overflow, and approved
+credentialed sources), runs every
 document through a 15-stage AI enrichment pipeline, clusters pain into problems, connects
 everything in a knowledge graph, and produces **ranked, explained startup opportunities**.
 
@@ -85,7 +86,7 @@ backend/
     schemas/        # Pydantic DTOs (API + internal contracts)
     repositories/   # data access (repository pattern)
     services/       # business logic
-    collectors/     # source-plugin framework + Reddit/X/GitHub/HN collectors
+    collectors/     # source-plugin framework + GitHub/HN/Stack Overflow collectors
     ai/             # LLM clients, embeddings, 15-stage pipeline, scoring
     vector/         # Qdrant collections + semantic/hybrid search
     graph/          # knowledge graph service (Postgres property graph)
@@ -121,6 +122,7 @@ cd frontend && npm run lint && npm run build
 
 CI runs lint (ruff), type-check (mypy), tests, and frontend build on every push.
 
-Production collection is near-real-time and source-aware: public feeds refresh every
-15 minutes, while Stack Overflow refreshes every two hours to respect its anonymous API
-quota. Cursors, deduplication, and incremental vector upserts prevent repeat processing.
+Production collection is near-real-time and source-aware: GitHub Issues and
+other public feeds refresh every 15 minutes, while Stack Overflow refreshes every two
+hours to respect its anonymous API quota. Cursors, deduplication, and incremental vector
+upserts prevent repeat processing.

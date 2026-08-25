@@ -37,6 +37,9 @@ jobs:
       KAMPHER_REDDIT_CLIENT_ID: ${{ secrets.KAMPHER_REDDIT_CLIENT_ID }}
       KAMPHER_REDDIT_CLIENT_SECRET: ${{ secrets.KAMPHER_REDDIT_CLIENT_SECRET }}
       KAMPHER_REDDIT_USER_AGENT: kampher/0.1 (production collector)
+      KAMPHER_GITHUB_TOKEN: ${{ github.token }}
+      KAMPHER_GITHUB_REPOS: '["vercel/next.js","supabase/supabase","langchain-ai/langchain","fastapi/fastapi","docker/compose","prisma/prisma","microsoft/playwright","stripe/stripe-node"]'
+      KAMPHER_GITHUB_DISCUSSIONS_ENABLED: "false"
       KAMPHER_QDRANT_PATH: ""
       KAMPHER_STACKOVERFLOW_ENABLED: "false"
 
@@ -62,7 +65,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           ALERT_TITLE: "Kampher alert: public-feed ingestion is failing"
-          ALERT_GROUP: "Hacker News, Dev.to, Lobsters, and configured credentialed feeds"
+          ALERT_GROUP: "GitHub Issues, Hacker News, Dev.to, Lobsters, and configured credentialed feeds"
         with:
           script: |
             const { owner, repo } = context.repo;

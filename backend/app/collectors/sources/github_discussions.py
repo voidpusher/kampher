@@ -47,7 +47,11 @@ class GitHubDiscussionsCollector(BaseCollector):
     requests_per_second = 0.5  # GraphQL points budget is tighter than REST
 
     def enabled(self) -> bool:
-        return bool(self.settings.github_token and self.settings.github_repos)
+        return bool(
+            self.settings.github_discussions_enabled
+            and self.settings.github_token
+            and self.settings.github_repos
+        )
 
     def streams(self) -> list[str]:
         return list(self.settings.github_repos)
