@@ -3,6 +3,7 @@
 python -m app.workers.run_once collect
 python -m app.workers.run_once refresh    # collect + embed only new posts
 python -m app.workers.run_once monitor 60 # fail if a configured stream is stale
+python -m app.workers.run_once recovery    # verify backup/recovery invariants
 python -m app.workers.run_once embed      # local, no LLM needed
 python -m app.workers.run_once enrich
 python -m app.workers.run_once cluster
@@ -100,6 +101,27 @@ def main(step: str, batch_size: int | None = None) -> None:
             raise SystemExit(1)
         log.info("ingestion health check passed", streams=len(checks))
 
+    elif step == "recovery":
+        from app.services.recovery import (
+            evaluate_recovery_readiness,
+            read_recovery_metrics,
+            recovery_is_ready,
+        )
+
+        with worker_session() as session:
+            metrics = read_recovery_metrics(session)
+        checks = evaluate_recovery_readiness(metrics)
+        if not recovery_is_ready(checks):
+            log.error("recovery readiness check failed", checks=checks)
+            raise SystemExit(1)
+        log.info(
+            "recovery readiness check passed",
+            checks=checks,
+            posts=metrics.post_count,
+            sources=metrics.source_count,
+            migration=metrics.migration_version,
+        )
+
     elif step == "enrich":
         from app.repositories.ingestion import IngestionRepository
         from app.services.enrichment import EnrichmentService
@@ -173,7 +195,8 @@ def main(step: str, batch_size: int | None = None) -> None:
 
     else:
         raise SystemExit(
-            f"unknown step: {step!r} (collect|refresh|monitor|embed|enrich|cluster|trends|reports)"
+            f"unknown step: {step!r} "
+            "(collect|refresh|monitor|recovery|embed|enrich|cluster|trends|reports)"
         )
 
 
