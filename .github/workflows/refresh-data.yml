@@ -52,6 +52,8 @@ jobs:
         run: uv run python -m app.db.seed_tech_polls
       - name: Collect and index only new conversations
         run: uv run python -m app.workers.run_once refresh
+      - name: Verify public-feed freshness
+        run: uv run python -m app.workers.run_once monitor 60
 
   stackoverflow-refresh:
     if: github.event.schedule == '7 */2 * * *'
@@ -85,6 +87,8 @@ jobs:
         run: uv run alembic upgrade head
       - name: Collect and index only new Stack Overflow posts
         run: uv run python -m app.workers.run_once refresh
+      - name: Verify Stack Overflow freshness
+        run: uv run python -m app.workers.run_once monitor 180
 
   intelligence-refresh:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '40 */6 * * *'

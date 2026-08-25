@@ -7,6 +7,7 @@ from app.core.exceptions import RetryableError
 from app.core.logging import bind_request_context, get_logger
 from app.db.session import worker_session
 from app.models.enums import Source
+from app.repositories.ingestion import IngestionRepository
 from app.services.ingestion import IngestionService
 from app.workers.celery_app import app
 
@@ -37,8 +38,18 @@ def collect_all_sources() -> dict[str, int]:
 )
 def collect_stream(self: object, source: str, stream: str) -> dict[str, int]:
     bind_request_context(source=source, stream=stream)
-    with worker_session() as session:
-        new_ids = IngestionService(session).collect_stream(Source(source), stream)
+    source_kind = Source(source)
+    try:
+        with worker_session() as session:
+            new_ids = IngestionService(session).collect_stream(source_kind, stream)
+    except Exception as exc:
+        # The failed collection transaction is rolled back. Record the failure in a
+        # separate unit of work so health checks can see it between Celery retries.
+        with worker_session() as session:
+            repository = IngestionRepository(session)
+            cursor = repository.get_cursor(source_kind, stream)
+            repository.save_cursor(source_kind, stream, cursor, error=str(exc)[:500])
+        raise
 
     # Hand fresh documents straight to the enrichment queue.
     from app.workers.tasks.enrich import enrich_post

@@ -2,6 +2,7 @@
 
 python -m app.workers.run_once collect
 python -m app.workers.run_once refresh    # collect + embed only new posts
+python -m app.workers.run_once monitor 60 # fail if a configured stream is stale
 python -m app.workers.run_once embed      # local, no LLM needed
 python -m app.workers.run_once enrich
 python -m app.workers.run_once cluster
@@ -31,18 +32,20 @@ def main(step: str, batch_size: int | None = None) -> None:
         from app.services.ingestion import IngestionService
 
         new_post_ids: list[uuid.UUID] = []
+        failed_streams: list[str] = []
         for collector in enabled_collectors():
             for stream in collector.streams():
-                try:
-                    with worker_session() as session:
+                with worker_session() as session:
+                    try:
                         new = IngestionService(session).collect_stream(collector.source, stream)
-                except Exception:  # noqa: BLE001 - keep other live sources flowing
-                    log.exception(
-                        "stream refresh failed",
-                        source=collector.source.value,
-                        stream=stream,
-                    )
-                    continue
+                    except Exception:  # noqa: BLE001 - keep other live sources flowing
+                        failed_streams.append(f"{collector.source.value}/{stream}")
+                        log.exception(
+                            "stream refresh failed",
+                            source=collector.source.value,
+                            stream=stream,
+                        )
+                        continue
                 new_post_ids.extend(new)
                 log.info("collected", source=collector.source.value, stream=stream, new=len(new))
 
@@ -60,6 +63,42 @@ def main(step: str, batch_size: int | None = None) -> None:
             log.info("incremental refresh complete", new=len(new_post_ids), embedded=embedded)
         elif step == "refresh":
             log.info("incremental refresh complete", new=0, embedded=0)
+
+        if failed_streams:
+            log.error(
+                "collection completed with failed streams",
+                failed=len(failed_streams),
+                streams=failed_streams,
+            )
+            raise SystemExit(1)
+
+    elif step == "monitor":
+        from datetime import UTC, datetime
+
+        from sqlalchemy import select
+
+        from app.collectors.registry import enabled_collectors
+        from app.models import SourceCursor
+        from app.services.ingestion_monitor import (
+            ExpectedStream,
+            evaluate_stream_health,
+            is_healthy,
+        )
+
+        stale_after_minutes = batch_size or 60
+        expected = [
+            ExpectedStream(collector.source, stream, stale_after_minutes)
+            for collector in enabled_collectors()
+            for stream in collector.streams()
+        ]
+        with worker_session() as session:
+            cursors = list(session.scalars(select(SourceCursor)))
+        checks = evaluate_stream_health(expected, cursors, now=datetime.now(UTC))
+        unhealthy = {key: value for key, value in checks.items() if value != "ok"}
+        if not is_healthy(checks):
+            log.error("ingestion health check failed", streams=unhealthy)
+            raise SystemExit(1)
+        log.info("ingestion health check passed", streams=len(checks))
 
     elif step == "enrich":
         from app.repositories.ingestion import IngestionRepository
@@ -134,7 +173,7 @@ def main(step: str, batch_size: int | None = None) -> None:
 
     else:
         raise SystemExit(
-            f"unknown step: {step!r} (collect|refresh|embed|enrich|cluster|trends|reports)"
+            f"unknown step: {step!r} (collect|refresh|monitor|embed|enrich|cluster|trends|reports)"
         )
 
 

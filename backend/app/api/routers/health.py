@@ -5,9 +5,13 @@ from __future__ import annotations
 import asyncio
 
 from fastapi import APIRouter, Response
-from sqlalchemy import text
+from sqlalchemy import select, text
 
+from app.api.deps import SessionDep
+from app.collectors.registry import enabled_collectors
+from app.models import SourceCursor
 from app.schemas.api import HealthOut
+from app.services.ingestion_monitor import ExpectedStream, evaluate_stream_health, is_healthy
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -60,6 +64,28 @@ async def ready(response: Response) -> HealthOut:
 
     await asyncio.gather(check_postgres(), check_redis(), check_qdrant())
     healthy = all(v in {"ok", "skipped"} for v in checks.values())
+    if not healthy:
+        response.status_code = 503
+    return HealthOut(status="ok" if healthy else "degraded", checks=checks)
+
+
+@router.get("/data", response_model=HealthOut)
+async def data_health(session: SessionDep, response: Response) -> HealthOut:
+    """Report whether every configured source stream is running successfully."""
+    expected = [
+        ExpectedStream(
+            source=collector.source,
+            stream=stream,
+            # Stack Overflow intentionally runs every two hours to protect its
+            # anonymous quota; public feeds run every fifteen minutes.
+            stale_after_minutes=180 if collector.source.value == "stackoverflow" else 60,
+        )
+        for collector in enabled_collectors()
+        for stream in collector.streams()
+    ]
+    cursors = list(await session.scalars(select(SourceCursor)))
+    checks = evaluate_stream_health(expected, cursors)
+    healthy = is_healthy(checks)
     if not healthy:
         response.status_code = 503
     return HealthOut(status="ok" if healthy else "degraded", checks=checks)
