@@ -40,12 +40,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    if not settings.is_dev and "*" in settings.cors_origins:
+        raise RuntimeError("wildcard CORS origins are forbidden outside development")
     app = FastAPI(
         title="Kampher API",
         description="Opportunity intelligence: ranked, explained startup opportunities "
         "mined from public internet conversations.",
         version="0.1.0",
         lifespan=lifespan,
+        docs_url="/docs" if settings.is_dev else None,
+        redoc_url="/redoc" if settings.is_dev else None,
+        openapi_url="/openapi.json" if settings.is_dev else None,
     )
 
     app.add_middleware(
@@ -72,6 +77,15 @@ def create_app() -> FastAPI:
         response.headers["x-frame-options"] = "DENY"
         response.headers["referrer-policy"] = "strict-origin-when-cross-origin"
         response.headers["permissions-policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["content-security-policy"] = (
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+        )
+        response.headers["cross-origin-opener-policy"] = "same-origin"
+        response.headers["x-dns-prefetch-control"] = "off"
+        if not settings.is_dev:
+            response.headers["strict-transport-security"] = (
+                "max-age=63072000; includeSubDomains; preload"
+            )
         if request.url.path == "/chat":
             response.headers["cache-control"] = "no-store"
         return response

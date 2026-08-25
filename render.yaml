@@ -8,7 +8,7 @@ services:
     rootDir: backend
     plan: free
     healthCheckPath: /health/live
-    dockerCommand: uvicorn app.api.main:app --host 0.0.0.0 --port $PORT
+    dockerCommand: uvicorn app.api.main:app --host 0.0.0.0 --port $PORT --no-server-header
     envVars:
       - key: KAMPHER_ENV
         value: prod

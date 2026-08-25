@@ -10,26 +10,52 @@ export interface SavedSearch {
 }
 
 const STORAGE_KEY = "kampher.saved-searches.v1";
+const MAX_SAVED_SEARCHES = 100;
+const MAX_QUERY_LENGTH = 500;
+const MODES = new Set<SavedSearchMode>(["hybrid", "semantic", "keyword"]);
+
+function isSavedSearch(value: unknown): value is SavedSearch {
+  if (!value || typeof value !== "object") return false;
+  const search = value as Partial<SavedSearch>;
+  return (
+    typeof search.id === "string" &&
+    typeof search.query === "string" &&
+    search.query.length > 0 &&
+    search.query.length <= MAX_QUERY_LENGTH &&
+    typeof search.mode === "string" &&
+    MODES.has(search.mode as SavedSearchMode) &&
+    typeof search.createdAt === "string" &&
+    !Number.isNaN(Date.parse(search.createdAt)) &&
+    typeof search.lastCheckedAt === "string" &&
+    !Number.isNaN(Date.parse(search.lastCheckedAt)) &&
+    typeof search.notifications === "boolean"
+  );
+}
 
 export function readSavedSearches(): SavedSearch[] {
   if (typeof window === "undefined") return [];
   try {
     const value = window.localStorage.getItem(STORAGE_KEY);
     if (!value) return [];
-    const parsed = JSON.parse(value) as SavedSearch[];
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter(isSavedSearch).slice(0, MAX_SAVED_SEARCHES)
+      : [];
   } catch {
     return [];
   }
 }
 
 function writeSavedSearches(searches: SavedSearch[]): void {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(searches));
+  window.localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(searches.filter(isSavedSearch).slice(0, MAX_SAVED_SEARCHES)),
+  );
   window.dispatchEvent(new Event("kampher:saved-searches"));
 }
 
 export function saveSearch(query: string, mode: SavedSearchMode): SavedSearch {
-  const normalized = query.trim();
+  const normalized = query.trim().slice(0, MAX_QUERY_LENGTH);
   const searches = readSavedSearches();
   const existing = searches.find(
     (search) => search.query.toLowerCase() === normalized.toLowerCase() && search.mode === mode,

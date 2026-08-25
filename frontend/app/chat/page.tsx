@@ -97,7 +97,15 @@ export default function ChatPage() {
               ) : exchange.response ? (
                 <div className="rounded-xl border border-line bg-surface p-5 sm:p-6">
                   <div className="max-w-none text-[15px] leading-7 text-fg [&_h2]:mb-4 [&_h2]:mt-7 [&_h2]:font-display [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:tracking-[-0.035em] [&_h2:first-child]:mt-0 [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:font-display [&_h3]:text-lg [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_li]:py-0.5 [&_p]:my-3 [&_strong]:text-fg">
-                    <ReactMarkdown>{exchange.response.answer}</ReactMarkdown>
+                    <ReactMarkdown
+                      components={{
+                        // Model output is evidence prose, not a navigation surface.
+                        // Render link labels but never model-provided destinations.
+                        a: ({ children }) => <span>{children}</span>,
+                      }}
+                    >
+                      {exchange.response.answer}
+                    </ReactMarkdown>
                   </div>
                   <Citations response={exchange.response} />
                 </div>

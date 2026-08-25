@@ -9,6 +9,7 @@ from __future__ import annotations
 import threading
 import time
 from collections import defaultdict, deque
+from ipaddress import ip_address
 
 from fastapi import HTTPException, Request, status
 
@@ -50,9 +51,15 @@ limiter = FixedWindowRateLimiter()
 
 
 def _client_key(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "").split(",", maxsplit=1)[0].strip()
-    if forwarded:
-        return forwarded
+    # Render appends the connecting client to the proxy chain. The left-most value
+    # can be supplied by an attacker, so trust only the final syntactically valid IP.
+    forwarded = request.headers.get("x-forwarded-for", "")
+    candidate = forwarded.rsplit(",", maxsplit=1)[-1].strip()
+    if candidate:
+        try:
+            return ip_address(candidate).compressed
+        except ValueError:
+            pass
     return request.client.host if request.client else "unknown"
 
 
