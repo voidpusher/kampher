@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import math
 import re
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
@@ -372,18 +373,67 @@ class ChatService:
         by_id = {p.id: p for p in rows}
         candidates = [by_id[pid] for pid in ordered_ids if pid in by_id]
         query = " ".join(plan.search_queries)
-        return sorted(candidates, key=lambda post: self._evidence_score(post, query), reverse=True)[
-            :10
-        ]
+        return self._rank_evidence(candidates, query)[:10]
 
     @staticmethod
-    def _evidence_score(post: Post, query: str) -> float:
-        """Prefer detailed first-person problem evidence over adjacent headlines."""
-        terms = {
+    def _rank_evidence(
+        candidates: list[Post], query: str, now: datetime | None = None
+    ) -> list[Post]:
+        """Rank direct evidence by relevance, freshness, and independent recurrence."""
+        if not candidates:
+            return []
+
+        reference_time = now or datetime.now(UTC)
+        query_terms = ChatService._meaningful_terms(query)
+        fingerprints = {
+            post.id: ChatService._problem_fingerprint(post, query_terms) for post in candidates
+        }
+        recurrence: dict[uuid.UUID, set[str]] = {post.id: set() for post in candidates}
+
+        # Similar complaints from independent sources are a stronger product signal
+        # than several copies from one community. Keep the boost deliberately small:
+        # corroboration should break close ties, not rescue irrelevant evidence.
+        for index, post in enumerate(candidates):
+            post_terms = fingerprints[post.id]
+            if not post_terms:
+                continue
+            for other in candidates[index + 1 :]:
+                if post.source.value == other.source.value:
+                    continue
+                other_terms = fingerprints[other.id]
+                denominator = min(len(post_terms), len(other_terms))
+                if denominator and len(post_terms & other_terms) / denominator >= 0.3:
+                    recurrence[post.id].add(other.source.value)
+                    recurrence[other.id].add(post.source.value)
+
+        return sorted(
+            candidates,
+            key=lambda post: (
+                ChatService._evidence_score(post, query, reference_time)
+                + min(len(recurrence[post.id]), 3) * 1.5
+            ),
+            reverse=True,
+        )
+
+    @staticmethod
+    def _meaningful_terms(text: str) -> set[str]:
+        return {
             token
-            for token in re.findall(r"[a-z0-9+#.-]+", query.casefold())
+            for token in re.findall(r"[a-z0-9+#.-]+", text.casefold())
             if len(token) > 2 and token not in _QUERY_STOPWORDS
         }
+
+    @staticmethod
+    def _problem_fingerprint(post: Post, query_terms: set[str]) -> set[str]:
+        tokens = ChatService._meaningful_terms(f"{post.title or ''} {post.body or ''}")
+        # Query terms establish relevance but cannot establish that two posts describe
+        # the same pain. Compare the surrounding failure/workflow vocabulary instead.
+        return set(sorted(tokens - query_terms)[:80])
+
+    @staticmethod
+    def _evidence_score(post: Post, query: str, now: datetime | None = None) -> float:
+        """Prefer detailed first-person problem evidence over adjacent headlines."""
+        terms = ChatService._meaningful_terms(query)
         title = (post.title or "").casefold()
         body = (post.body or "").casefold()
         community = (post.community or "").casefold()
@@ -397,7 +447,17 @@ class ChatService:
         score += min(sum(text.count(term) for term in _PAIN_TERMS), 6) * 1.25
         score += min(len(body) / 500.0, 4.0)
         score -= 7.0 if len(body.strip()) < 80 else 0.0
-        score += 1.5 if post.source.value == "stackoverflow" else 0.0
+        score += 2.0 if getattr(post, "has_pain_signal", None) is True else 0.0
+
+        reference_time = now or datetime.now(UTC)
+        posted_at = getattr(post, "posted_at", None)
+        if posted_at is not None:
+            if posted_at.tzinfo is None:
+                posted_at = posted_at.replace(tzinfo=UTC)
+            age_days = max((reference_time - posted_at).total_seconds() / 86400.0, 0.0)
+            # Recent observations should lead, while durable, detailed historical
+            # evidence remains discoverable. A smooth half-life avoids date cutoffs.
+            score += 6.0 * math.exp(-age_days / 180.0)
 
         metrics = post.metrics or {}
         engagement = sum(
