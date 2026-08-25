@@ -20,7 +20,15 @@ services:
         value: "384"
       - key: KAMPHER_REDIS_HEALTH_CHECK
         value: "false"
+      - key: KAMPHER_LLM_PROVIDER
+        value: gemini
+      - key: KAMPHER_LLM_MODEL
+        value: gemini-3.5-flash
+      - key: KAMPHER_LLM_MODEL_FAST
+        value: gemini-3.1-flash-lite
       # Set these in the Render dashboard (Neon + Qdrant Cloud credentials):
+      - key: GEMINI_API_KEY
+        sync: false
       - key: KAMPHER_DATABASE_URL        # postgresql+asyncpg://...?ssl=require
         sync: false
       - key: KAMPHER_DATABASE_URL_SYNC   # postgresql+psycopg://...?sslmode=require
