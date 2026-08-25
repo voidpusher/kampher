@@ -75,6 +75,7 @@ jobs:
                 owner,
                 repo,
                 title,
+                assignees: [owner],
                 body: [
                   "Kampher's automated ingestion monitor detected a failed or stale source stream.",
                   "",
@@ -159,6 +160,7 @@ jobs:
                 owner,
                 repo,
                 title,
+                assignees: [owner],
                 body: [
                   "Kampher's automated ingestion monitor detected a failed or stale source stream.",
                   "",
