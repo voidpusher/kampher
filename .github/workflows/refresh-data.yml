@@ -62,7 +62,7 @@ jobs:
         run: uv run python -m app.workers.run_once monitor 60
       - name: Open a public-feed ingestion alert
         if: ${{ failure() }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           ALERT_TITLE: "Kampher alert: public-feed ingestion is failing"
           ALERT_GROUP: "GitHub Issues, Hacker News, Dev.to, Lobsters, and configured credentialed feeds"
@@ -93,7 +93,7 @@ jobs:
             }
       - name: Close recovered public-feed alert
         if: ${{ success() }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           ALERT_TITLE: "Kampher alert: public-feed ingestion is failing"
         with:
@@ -147,7 +147,7 @@ jobs:
         run: uv run python -m app.workers.run_once monitor 180
       - name: Open a Stack Overflow ingestion alert
         if: ${{ failure() }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           ALERT_TITLE: "Kampher alert: Stack Overflow ingestion is failing"
           ALERT_GROUP: "Stack Overflow"
@@ -178,7 +178,7 @@ jobs:
             }
       - name: Close recovered Stack Overflow alert
         if: ${{ success() }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           ALERT_TITLE: "Kampher alert: Stack Overflow ingestion is failing"
         with:
@@ -221,7 +221,7 @@ jobs:
         run: uv run python -m app.workers.run_once recovery
       - name: Open a recovery-readiness alert
         if: ${{ failure() }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           ALERT_TITLE: "Kampher alert: database recovery readiness failed"
         with:
@@ -251,7 +251,7 @@ jobs:
             }
       - name: Close recovered database alert
         if: ${{ success() }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           ALERT_TITLE: "Kampher alert: database recovery readiness failed"
         with:
