@@ -41,7 +41,7 @@ jobs:
       KAMPHER_STACKOVERFLOW_ENABLED: "false"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
@@ -128,7 +128,7 @@ jobs:
       KAMPHER_STACKOVERFLOW_ENABLED: "true"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
@@ -206,7 +206,7 @@ jobs:
       KAMPHER_DATABASE_URL_SYNC: ${{ secrets.KAMPHER_DATABASE_URL_SYNC }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
@@ -286,7 +286,7 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
