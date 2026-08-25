@@ -58,7 +58,6 @@ def test_chat_plan_uses_question_without_llm_round_trip() -> None:
     assert plan.industry_slug is None
 
 
-
 def test_chat_plan_preserves_question_when_no_specific_terms_remain() -> None:
     question = "Which problems are rapidly increasing this month?"
 
