@@ -58,7 +58,7 @@ def test_gemini_closes_loop_scoped_client(monkeypatch) -> None:
         "app.ai.llm.gemini_client.genai.Client",
         lambda **_kwargs: SimpleNamespace(aio=fake_aio),
     )
-    client = GeminiClient(Settings(gemini_api_key="test-key"))
+    client = GeminiClient(Settings(GEMINI_API_KEY="test-key"))
 
     response = asyncio.run(
         client._call_with_retry(
