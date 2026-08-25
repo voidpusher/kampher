@@ -57,8 +57,8 @@ export default function ChatPage() {
           Ask the index
         </h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
-          Answers use only Kampher&apos;s indexed conversations and opportunities,
-          with the original evidence attached.
+          Get a complete research brief from Kampher&apos;s indexed conversations.
+          Evidence is explained here; opening the original sources is optional.
         </p>
       </div>
 
@@ -190,15 +190,33 @@ function Citations({ response }: { response: ChatResponse }) {
         </Link>
       ))}
       {response.cited_posts.map((post) => (
-        <a
-          className="block rounded-md px-2 py-2 font-mono text-[11px] text-faint transition-colors hover:bg-panel hover:text-ember"
-          href={post.url}
+        <article
+          className="mt-2 rounded-lg border border-line bg-panel/40 p-4"
           key={post.id}
-          rel="noreferrer"
-          target="_blank"
         >
-          → {post.title ?? "post"} · {SOURCE_LABELS[post.source] ?? post.source}
-        </a>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[9px] uppercase tracking-[0.12em] text-faint">
+            <span>{SOURCE_LABELS[post.source] ?? post.source}</span>
+            {post.community ? <span>· {post.community}</span> : null}
+          </div>
+          <p className="mt-2 text-sm font-medium leading-5 text-fg">
+            {post.title ?? "Untitled conversation"}
+          </p>
+          {post.excerpt ? (
+            <p className="mt-2 text-sm leading-6 text-muted">{post.excerpt}</p>
+          ) : (
+            <p className="mt-2 text-xs leading-5 text-faint">
+              Only the source headline was available in the indexed evidence.
+            </p>
+          )}
+          <a
+            className="mt-3 inline-flex font-mono text-[10px] uppercase tracking-[0.1em] text-faint transition-colors hover:text-ember"
+            href={post.url}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Open original ↗
+          </a>
+        </article>
       ))}
     </div>
   );

@@ -103,9 +103,19 @@ export interface SearchResponse {
   results: SearchResult[];
 }
 
+export interface ChatEvidencePost {
+  id: string;
+  source: Source;
+  title: string | null;
+  url: string;
+  community?: string | null;
+  posted_at?: string | null;
+  excerpt?: string | null;
+}
+
 export interface ChatResponse {
   answer: string;
-  cited_posts: { id: string; source: Source; title: string | null; url: string }[];
+  cited_posts: ChatEvidencePost[];
   cited_opportunities: { id: string; slug: string; title: string }[];
 }
 
@@ -253,7 +263,7 @@ export const api = {
 
   chat: async (question: string): Promise<ChatResponse | null> => {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 25_000);
+    const timeout = window.setTimeout(() => controller.abort(), 40_000);
     try {
       const response = await fetch(`${API_URL}/chat`, {
         method: "POST",

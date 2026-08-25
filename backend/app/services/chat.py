@@ -8,6 +8,7 @@ model answers strictly from what was retrieved, citing post/opportunity ids.
 from __future__ import annotations
 
 import asyncio
+import math
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -52,6 +53,8 @@ problem opportunities. Use this exact decision-oriented structure:
 - **Current workaround / gap:** <what they do now and why it is inadequate, if known>
 - **What to build:** <a focused product direction, clearly labeled as an inference>
 - **Signal strength:** High, Medium, or Early, with a short evidence-based reason
+- **Evidence snapshot:** <2-3 concrete details from the retrieved conversations so
+  the reader understands the problem without opening an external link>
 
 End with:
 ## Best starting point
@@ -62,15 +65,17 @@ claim must have a citation. Separate observed evidence from your product inferen
 Never invent frequency, market size, users, workarounds, or trends. When evidence is
 thin, call it an early signal and say what the builder should validate next. If the
 context does not explicitly describe a workaround, write "Not established in the
-retrieved evidence" instead of guessing."""
+retrieved evidence" instead of guessing. The answer must be self-contained: links are
+optional provenance, never a substitute for explaining the evidence."""
 
-_SYNTHESIS_TIMEOUT_SECONDS = 8
+_SYNTHESIS_TIMEOUT_SECONDS = 20
 _QUERY_STOPWORDS = frozenset(
     {
         "a",
         "about",
         "an",
         "are",
+        "around",
         "build",
         "can",
         "complaining",
@@ -78,6 +83,8 @@ _QUERY_STOPWORDS = frozenset(
         "discussing",
         "do",
         "does",
+        "facing",
+        "find",
         "for",
         "how",
         "i",
@@ -96,10 +103,12 @@ _QUERY_STOPWORDS = frozenset(
         "product",
         "rapidly",
         "should",
+        "show",
         "startup",
         "that",
         "the",
         "this",
+        "tell",
         "to",
         "users",
         "what",
@@ -107,6 +116,24 @@ _QUERY_STOPWORDS = frozenset(
         "why",
         "with",
     }
+)
+_PAIN_TERMS = (
+    "cannot",
+    "can't",
+    "confus",
+    "difficult",
+    "error",
+    "fail",
+    "frustrat",
+    "headache",
+    "issue",
+    "limited success",
+    "manual",
+    "pain",
+    "problem",
+    "slow",
+    "tedious",
+    "workaround",
 )
 log = get_logger("services.chat")
 
@@ -127,8 +154,11 @@ class RetrievalPlan(BaseModel):
 
 class ChatAnswer(BaseModel):
     answer: str = Field(description="The answer in markdown, with [P<n>]/[O<n>] citations.")
-    cited_post_ids: list[str]
-    cited_opportunity_ids: list[str]
+    # Markdown markers are the primary citation contract. These optional UUID lists
+    # remain useful when a model emits them, but must never reject an otherwise valid
+    # grounded answer.
+    cited_post_ids: list[str] = Field(default_factory=list)
+    cited_opportunity_ids: list[str] = Field(default_factory=list)
 
 
 class ChatService:
@@ -155,7 +185,7 @@ class ChatService:
         for index, post in enumerate(posts, start=1):
             context_lines.append(
                 f"[P{index}] id={post.id} ({post.source.value}/{post.community or '-'}) "
-                f"{truncate((post.title or '') + ' — ' + post.body, 400)}"
+                f"{truncate((post.title or '') + ' — ' + post.body, 900)}"
             )
         for index, opp in enumerate(opportunities, start=1):
             context_lines.append(
@@ -176,7 +206,7 @@ class ChatService:
                     ),
                     schema=ChatAnswer,
                     tier=ModelTier.FAST,
-                    max_tokens=1000,
+                    max_tokens=1600,
                 ),
                 timeout=_SYNTHESIS_TIMEOUT_SECONDS,
             )
@@ -256,18 +286,20 @@ class ChatService:
         ]
         for index, post in enumerate(posts[:6], start=1):
             title = post.title or truncate(post.body, 90) or "Untitled conversation"
-            observed_pain = truncate(post.body, 220) if post.body else title
+            observed_pain = truncate(post.body, 420) if post.body else title
             community = post.community or post.source.value
             lines.extend(
                 [
                     f"### {index}. {title}",
                     f"- **Who has it:** People discussing this in {community}. [P{index}]",
                     f"- **Observed pain:** {observed_pain} [P{index}]",
+                    "- **Current workaround / gap:** Not established in the retrieved evidence.",
                     "- **What to build:** Investigate a focused tool that removes this "
                     "failure or manual step. This is a product inference; validate the "
                     "workflow with people reporting it.",
                     "- **Signal strength:** Early — one directly relevant conversation "
                     "was retrieved, but recurrence still needs validation.",
+                    f"- **Evidence snapshot:** {observed_pain} [P{index}]",
                     "",
                 ]
             )
@@ -317,13 +349,19 @@ class ChatService:
         seen: set[uuid.UUID] = set()
         ordered_ids: list[uuid.UUID] = []
         for query in plan.search_queries:
-            hits = await self.search.search_posts(
-                query, mode="hybrid", limit=6, industry_slug=plan.industry_slug
+            # Chat needs detailed problem evidence more than generic search-result
+            # diversity. Keep lexical and semantic recall explicit, then rerank the
+            # combined candidates after loading their full text.
+            keyword_hits = await self.search.search_posts(
+                query, mode="keyword", limit=14, industry_slug=plan.industry_slug
             )
-            # The planner may infer a plausible industry that has no tagged posts yet.
-            # Preserve recall by retrying without that optional filter.
+            semantic_hits = await self.search.search_posts(
+                query, mode="semantic", limit=14, industry_slug=plan.industry_slug
+            )
+            hits = keyword_hits + semantic_hits
             if not hits and plan.industry_slug:
-                hits = await self.search.search_posts(query, mode="hybrid", limit=6)
+                hits = await self.search.search_posts(query, mode="keyword", limit=14)
+                hits += await self.search.search_posts(query, mode="semantic", limit=14)
             for hit in hits:
                 if hit.post_id not in seen:
                     seen.add(hit.post_id)
@@ -332,7 +370,41 @@ class ChatService:
             return []
         rows = await self.session.scalars(select(Post).where(Post.id.in_(ordered_ids)))
         by_id = {p.id: p for p in rows}
-        return [by_id[pid] for pid in ordered_ids if pid in by_id][:12]
+        candidates = [by_id[pid] for pid in ordered_ids if pid in by_id]
+        query = " ".join(plan.search_queries)
+        return sorted(candidates, key=lambda post: self._evidence_score(post, query), reverse=True)[
+            :10
+        ]
+
+    @staticmethod
+    def _evidence_score(post: Post, query: str) -> float:
+        """Prefer detailed first-person problem evidence over adjacent headlines."""
+        terms = {
+            token
+            for token in re.findall(r"[a-z0-9+#.-]+", query.casefold())
+            if len(token) > 2 and token not in _QUERY_STOPWORDS
+        }
+        title = (post.title or "").casefold()
+        body = (post.body or "").casefold()
+        community = (post.community or "").casefold()
+        text = f"{title} {body}"
+
+        score = 0.0
+        for term in terms:
+            score += 8.0 if term in community else 0.0
+            score += 5.0 if term in title else 0.0
+            score += min(body.count(term), 3) * 1.5
+        score += min(sum(text.count(term) for term in _PAIN_TERMS), 6) * 1.25
+        score += min(len(body) / 500.0, 4.0)
+        score -= 7.0 if len(body.strip()) < 80 else 0.0
+        score += 1.5 if post.source.value == "stackoverflow" else 0.0
+
+        metrics = post.metrics or {}
+        engagement = sum(
+            max(float(metrics.get(key, 0) or 0), 0.0)
+            for key in ("answers", "comments", "score", "reactions")
+        )
+        return score + min(math.log1p(engagement), 3.0)
 
     async def _retrieve_opportunities(self, plan: RetrievalPlan) -> list[Opportunity]:
         def _semantic_ids() -> list[uuid.UUID]:
@@ -356,4 +428,7 @@ class ChatService:
             "source": post.source.value,
             "title": post.title,
             "url": post.url,
+            "community": post.community,
+            "posted_at": post.posted_at.isoformat(),
+            "excerpt": truncate(post.body, 500) if post.body else None,
         }

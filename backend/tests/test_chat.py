@@ -28,7 +28,12 @@ async def test_retrieval_retries_without_empty_inferred_industry() -> None:
     )
 
     assert await service._retrieve_posts(plan) == []
-    assert service.search.industry_filters == ["cybersecurity", None]
+    assert service.search.industry_filters == [
+        "cybersecurity",
+        "cybersecurity",
+        None,
+        None,
+    ]
 
 
 async def test_retrieval_without_industry_searches_once() -> None:
@@ -42,7 +47,7 @@ async def test_retrieval_without_industry_searches_once() -> None:
     )
 
     assert await service._retrieve_posts(plan) == []
-    assert service.search.industry_filters == [None]
+    assert service.search.industry_filters == [None, None]
 
 
 def test_chat_plan_uses_question_without_llm_round_trip() -> None:
@@ -53,10 +58,38 @@ def test_chat_plan_uses_question_without_llm_round_trip() -> None:
     assert plan.industry_slug is None
 
 
+
 def test_chat_plan_preserves_question_when_no_specific_terms_remain() -> None:
     question = "Which problems are rapidly increasing this month?"
 
     assert ChatService._build_plan(question).search_queries == [question]
+
+
+def test_chat_focuses_problem_query_on_the_topic() -> None:
+    question = "Show me problems people are facing around deployment"
+
+    assert ChatService._build_plan(question).search_queries == ["deployment"]
+
+
+def test_evidence_ranking_prefers_detailed_problem_over_empty_headline() -> None:
+    detailed = SimpleNamespace(
+        title="Deployment process keeps failing",
+        body="Our deployment fails during CI and the manual workaround is slow.",
+        community="so/deployment",
+        source=SimpleNamespace(value="stackoverflow"),
+        metrics={"answers": 2, "score": 3},
+    )
+    headline = SimpleNamespace(
+        title="A deployment platform",
+        body="",
+        community="hackernews",
+        source=SimpleNamespace(value="hackernews"),
+        metrics={"score": 1},
+    )
+
+    assert ChatService._evidence_score(detailed, "deployment") > ChatService._evidence_score(
+        headline, "deployment"
+    )
 
 
 async def test_chat_returns_cited_evidence_when_synthesis_fails() -> None:
@@ -67,6 +100,7 @@ async def test_chat_returns_cited_evidence_when_synthesis_fails() -> None:
         body="Developers describe a recurring OAuth callback problem.",
         community="oauth-2.0",
         url="https://example.com/post",
+        posted_at=SimpleNamespace(isoformat=lambda: "2026-08-22T00:00:00+00:00"),
     )
     service = object.__new__(ChatService)
     service.llm = SimpleNamespace(extract=AsyncMock(side_effect=RuntimeError("model busy")))
