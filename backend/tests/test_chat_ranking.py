@@ -58,3 +58,17 @@ def test_ranking_boosts_problem_corroborated_by_another_source() -> None:
 
     assert ranked.index(corroborated) < ranked.index(isolated)
     assert ranked.index(corroborating) < ranked.index(isolated)
+
+
+def test_explicit_recent_query_excludes_old_posts_when_current_evidence_exists() -> None:
+    now = datetime(2026, 8, 25, tzinfo=UTC)
+    old = _post(source="stackoverflow", posted_at=now - timedelta(days=1800))
+    current = [
+        _post(source=source, posted_at=now - timedelta(days=age))
+        for source, age in (("hackernews", 5), ("devto", 20), ("lobsters", 60))
+    ]
+
+    ranked = ChatService._rank_evidence([old, *current], "recent deployment", now)
+
+    assert old not in ranked
+    assert {post.id for post in ranked} == {post.id for post in current}

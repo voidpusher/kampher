@@ -11,7 +11,7 @@ import asyncio
 import math
 import re
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -67,7 +67,9 @@ Never invent frequency, market size, users, workarounds, or trends. When evidenc
 thin, call it an early signal and say what the builder should validate next. If the
 context does not explicitly describe a workaround, write "Not established in the
 retrieved evidence" instead of guessing. The answer must be self-contained: links are
-optional provenance, never a substitute for explaining the evidence."""
+optional provenance, never a substitute for explaining the evidence. Use High signal
+strength only when at least two independent sources in the context corroborate the same
+problem; a single conversation is always Early regardless of how compelling it sounds."""
 
 _SYNTHESIS_TIMEOUT_SECONDS = 20
 _QUERY_STOPWORDS = frozenset(
@@ -135,6 +137,9 @@ _PAIN_TERMS = (
     "slow",
     "tedious",
     "workaround",
+)
+_RECENCY_TERMS = frozenset(
+    {"current", "currently", "latest", "month", "new", "recent", "recently", "today", "week"}
 )
 log = get_logger("services.chat")
 
@@ -384,6 +389,17 @@ class ChatService:
             return []
 
         reference_time = now or datetime.now(UTC)
+        requested_terms = ChatService._meaningful_terms(query)
+        if requested_terms & _RECENCY_TERMS:
+            recent_candidates = [
+                post for post in candidates if ChatService._age_days(post, reference_time) <= 365
+            ]
+            # Preserve enough evidence for a useful brief. When the index has three
+            # current matches, an explicit recency request should not be led by an
+            # otherwise detailed historical post.
+            if len(recent_candidates) >= 3:
+                candidates = recent_candidates
+
         query_terms = ChatService._meaningful_terms(query)
         fingerprints = {
             post.id: ChatService._problem_fingerprint(post, query_terms) for post in candidates
@@ -431,6 +447,15 @@ class ChatService:
         return set(sorted(tokens - query_terms)[:80])
 
     @staticmethod
+    def _age_days(post: Post, now: datetime) -> float:
+        posted_at = cast("datetime | None", getattr(post, "posted_at", None))
+        if posted_at is None:
+            return math.inf
+        if posted_at.tzinfo is None:
+            posted_at = posted_at.replace(tzinfo=UTC)
+        return max((now - posted_at).total_seconds() / 86400.0, 0.0)
+
+    @staticmethod
     def _evidence_score(post: Post, query: str, now: datetime | None = None) -> float:
         """Prefer detailed first-person problem evidence over adjacent headlines."""
         terms = ChatService._meaningful_terms(query)
@@ -450,11 +475,8 @@ class ChatService:
         score += 2.0 if getattr(post, "has_pain_signal", None) is True else 0.0
 
         reference_time = now or datetime.now(UTC)
-        posted_at = getattr(post, "posted_at", None)
-        if posted_at is not None:
-            if posted_at.tzinfo is None:
-                posted_at = posted_at.replace(tzinfo=UTC)
-            age_days = max((reference_time - posted_at).total_seconds() / 86400.0, 0.0)
+        age_days = ChatService._age_days(post, reference_time)
+        if math.isfinite(age_days):
             # Recent observations should lead, while durable, detailed historical
             # evidence remains discoverable. A smooth half-life avoids date cutoffs.
             score += 6.0 * math.exp(-age_days / 180.0)
